@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Widget BTC - Binance</title>
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: black;
+            color: white;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .widget {
+            background-color: black;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            width: 400px;
+            text-align: right;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .taxa-transacao {
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .preco {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: flex-end;
+            gap: 5px;
+        }
+
+        .valor-dolar {
+            font-size: 48px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .valor-brl-variacao {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            font-size: 20px;
+            gap: 10px;
+        }
+
+        .variacao-24h {
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .valor-brl {
+            font-size: 20px;
+        }
+
+        .bitcoin-logo {
+            height: 50px;
+            width: 50px;
+        }
+
+        .contador {
+            font-size: 12px;
+            color: #999;
+            text-align: right;
+        }
+
+        /* Responsividade */
+        @media (max-width: 360px) {
+            .widget {
+                width: 280px;
+            }
+
+            .valor-dolar {
+                font-size: 36px;
+            }
+
+            .valor-brl-variacao {
+                font-size: 16px;
+            }
+
+            .bitcoin-logo {
+                height: 40px;
+                width: 40px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="widget">
+        <div class="taxa-transacao">
+            <span id="mempool-sats">8 sat/vB</span> | 
+            <span id="usd-tx">US$ 1.07</span> | 
+            <span id="brl-tx">R$ 5.79</span>
+        </div>
+
+        <div class="preco">
+            <div class="valor-dolar">
+                <img src="https://cryptologos.cc/logos/bitcoin-btc-logo.png?v=024" alt="Bitcoin Logo" class="bitcoin-logo">
+                <span id="btc-usd">$95,855.63</span>
+            </div>
+            
+            <!-- Agora a porcentagem aparece na frente do R$ -->
+            <div class="valor-brl-variacao">
+                <div class="variacao-24h" id="btc-indicator">+0.00%</div>
+                <div class="valor-brl" id="btc-brl">R$557,232.33</div>
+            </div>
+        </div>
+
+        <div class="contador">
+            Atualizando em <span id="contador">10</span> segundos...
+        </div>
+    </div>
+
+    <script>
+        // Variáveis para armazenar os últimos valores recebidos
+        let lastBTCUSD = null;
+        let lastBTCBRL = null;
+
+        // Função para atualizar os dados do BTC e taxas
+        async function updateBTCData() {
+            try {
+                // Requisição para pegar os preços do Bitcoin em USD na Binance
+                const priceResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+                const priceData = await priceResponse.json();
+
+                const btcUSD = parseFloat(priceData.price); // Preço do Bitcoin em USD
+
+                // Requisição para pegar o preço de BTC/BRL na Binance
+                const priceBRLResponse = await fetch('https://api.binance.com/api/v3/ticker/price?symbol=BTCBRL');
+                const priceBRLData = await priceBRLResponse.json();
+
+                const btcBRL = parseFloat(priceBRLData.price); // Preço do Bitcoin em BRL
+
+                // Requisição para pegar os dados de 24 horas de preço do Bitcoin
+                const price24hResponse = await fetch('https://api.binance.com/api/v3/ticker/24hr?symbol=BTCBRL');
+                const price24hData = await price24hResponse.json();
+
+                const price24hBRL = parseFloat(price24hData.prevClosePrice); // Preço de 24h atrás
+
+                // Cálculo correto da variação de 24h
+                const percentageChange = ((btcBRL - price24hBRL) / price24hBRL) * 100;
+
+                // Atualiza os valores armazenados
+                lastBTCUSD = btcUSD;
+                lastBTCBRL = btcBRL;
+
+                // Requisição para pegar as taxas da mempool
+                const mempoolResponse = await fetch('https://mempool.space/api/v1/fees/recommended');
+                const mempoolData = await mempoolResponse.json();
+
+                const highPriorityRate = mempoolData.fastestFee; // Taxa de prioridade alta (em sat/vB)
+
+                // Cálculo do valor do satoshi
+                const satValueUSD = btcUSD / 1e8; // Valor de 1 satoshi em USD
+                const satValueBRL = btcBRL / 1e8; // Valor de 1 satoshi em BRL
+
+                // Cálculo da taxa total para 140 vBytes
+                const txFeeUSD = satValueUSD * highPriorityRate * 140; // Taxa em USD
+                const txFeeBRL = satValueBRL * highPriorityRate * 140; // Taxa em BRL
+
+                // Atualizando os valores na interface
+                document.getElementById('btc-usd').textContent = `$${btcUSD.toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+                document.getElementById('btc-brl').textContent = `R$ ${btcBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+                document.getElementById('mempool-sats').textContent = `${highPriorityRate} sat/vB`;
+                document.getElementById('usd-tx').textContent = `US$ ${txFeeUSD.toFixed(2)}`;
+                document.getElementById('brl-tx').textContent = `R$ ${txFeeBRL.toFixed(2)}`;
+
+                // Atualizando o indicador de 24h
+                const indicatorElem = document.getElementById('btc-indicator');
+                const indicatorColor = percentageChange >= 0 ? 'green' : 'red';
+                const indicatorSign = percentageChange >= 0 ? `+${percentageChange.toFixed(2)}%` : `${percentageChange.toFixed(2)}%`;
+
+                indicatorElem.textContent = indicatorSign;
+                indicatorElem.style.color = indicatorColor;
+
+                console.log("Dados atualizados:", { btcUSD, btcBRL, highPriorityRate, txFeeUSD, txFeeBRL, percentageChange, indicatorColor });
+            } catch (error) {
+                console.error('Erro ao buscar os dados do Bitcoin ou taxas da mempool:', error);
+            }
+        }
+
+        // Contador regressivo com atualização dos dados
+        function startCountdown() {
+            let contador = 10; // Alterado para 10 segundos
+            const contadorElem = document.getElementById('contador');
+            const interval = setInterval(() => {
+                contador--;
+                contadorElem.textContent = contador;
+                if (contador === 0) {
+                    contador = 10; // Reseta o contador para 10 segundos
+                    updateBTCData(); // Atualiza os dados
+                }
+            }, 1000);
+        }
+
+        // Inicializa o widget
+        updateBTCData();
+        startCountdown();
+    </script>
+</body>
+</html>
